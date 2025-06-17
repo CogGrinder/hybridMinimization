@@ -73,7 +73,7 @@ filename = 'json/'+RUNNING_STR+'.json'
 with open(filename, 'w') as f:
     f.write(json.dumps(info_list))
 
-from universalConfigConversion import *
+from hybridMinimization.universalConfigConversion import *
 CoCaBO_space = list_to_config(categorical_list,continuous_list,target_format='CoCaBO')
 CoCaBO_catCount = [len(k) for k in categorical_list]
 print(CoCaBO_catCount)

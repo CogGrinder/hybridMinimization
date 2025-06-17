@@ -131,7 +131,7 @@ hybridStrategy = 'UCTS'
 global methodList 
 methodList = ['hybridM'] 
 global categorical_model
-from treeClass import setupTree
+from hybridMinimization.treeClass import setupTree
 categorical_model = setupTree(categorical_list=categorical_list,\
                           policy_list=[hybridStrategy]*len(categorical_list),update_list=[hybridStrategy]*len(categorical_list),\
                           exploration_probability=0.10,\
