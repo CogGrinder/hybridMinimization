@@ -1,5 +1,7 @@
 **/build/
 **/__pycache__/
 **/*.json
+!**/bigbenchmark_3C0KGWJHAJP1KIHRZWKAWU4C.json
+!**/bigbenchmark_RIEC8M7UI40UZ64FPDTV1C5M.json
 **/bigbenchmark_*
 **.egg-info/
