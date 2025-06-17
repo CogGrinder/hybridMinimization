@@ -182,7 +182,7 @@ def hybridMinimization(fn,\
         for x0 in [x0_best_sample]:
             res = scipy.optimize.minimize(min_obj, x0=x0, bounds=bounds, method='L-BFGS-B',options={'disp': False,'gtol': 1e-8})
             if res.fun < min_val:
-                min_val = res.fun[0]
+                min_val = res.fun # previously min_val = res.fun[0]
                 min_x = res.x           
         return min_x.reshape(-1, 1), -1*min_val
     

@@ -3,6 +3,8 @@ GPy
 scikit-learn
 scikit-optimize
 scipy
-multiprocessing
+# multiprocessing is not needed in Python 3.4+
 dill
 termcolor
+hyperopt # required for universalConfigConversion.py
+smac # required for universalConfigConversion.py

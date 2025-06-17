@@ -4,7 +4,9 @@
 import tensorflow as tf
 import numpy as np
 import warnings, time
-from sklearn.datasets import load_boston
+
+from sklearn.datasets import fetch_california_housing
+# from sklearn.datasets import load_boston #FIXME: load_boston is deprecated in sklearn 1.2 and removed in 1.4
 
 def get_NN_error(n_model_cat = 3,n_in_dense_layer = 7,learning_rate_p = 0.01,\
                 batch_s=8,activation = 'relu',dropout_rate=0.0):
@@ -19,7 +21,7 @@ def get_NN_error(n_model_cat = 3,n_in_dense_layer = 7,learning_rate_p = 0.01,\
     #load boston dataset
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore")
-        X, y = load_boston(return_X_y=True)
+        X, y = fetch_california_housing(return_X_y=True)
     #print(X.shape)
 
     train_X = X
@@ -27,7 +29,7 @@ def get_NN_error(n_model_cat = 3,n_in_dense_layer = 7,learning_rate_p = 0.01,\
     assert train_X.shape[0] == train_Y.shape[0]
     n_train = train_X.shape[0]
     #
-    input_layer = tf.keras.layers.Input(shape=(train_X.shape[1]))
+    input_layer = tf.keras.layers.Input(shape=(train_X.shape[1],)) # previously input_layer = tf.keras.layers.Input(shape=(train_X.shape[1]))
     #n_model_cat = 3 #can be 3,4,5, categorical
     #n_in_dense_layer = 7 #can be 4 to 16, integer
     #learning_rate_p = 0.01 #can be 10**-5 to 0.1, continuous

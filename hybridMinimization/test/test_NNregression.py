@@ -4,7 +4,7 @@
 import tensorflow as tf
 import numpy as np
 import warnings, time
-from sklearn.datasets import load_boston
+from sklearn.datasets import fetch_california_housing
 
 def get_NN_error(n_model_cat = 3,n_in_dense_layer = 7,learning_rate_p = 0.01,\
                 batch_s=8,activation = 'relu',dropout_rate=0.0):
@@ -19,7 +19,7 @@ def get_NN_error(n_model_cat = 3,n_in_dense_layer = 7,learning_rate_p = 0.01,\
     #load boston dataset
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore")
-        X, y = load_boston(return_X_y=True)
+        X, y = fetch_california_housing(return_X_y=True)
     #print(X.shape)
 
     train_X = X

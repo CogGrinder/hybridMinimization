@@ -116,7 +116,7 @@ for randomSeed in range(STARTING_SEED_NUM,NUM_OF_REPEATS):
         
         HM_path=DESTINATION
         sys.path.insert(0, HM_path)
-        #import hybridMinimization
+        import hybridMinimization
         #from hybridMinimization import *
         from hybridMinimization import *
         

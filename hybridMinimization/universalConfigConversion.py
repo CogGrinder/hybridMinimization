@@ -4,7 +4,7 @@ import numpy as np
 import hyperopt
 from hyperopt import hp
 import smac
-from smac.configspace import ConfigurationSpace
+from smac.utils.configspace import ConfigurationSpace # previously from smac.configspace import ConfigurationSpace
 import ConfigSpace
 from ConfigSpace.hyperparameters import UniformFloatHyperparameter, CategoricalHyperparameter
 import sklearn, skopt
@@ -55,7 +55,7 @@ def list_to_config(categorical_list,continuous_list,target_format):
 
     elif target_format=='SMAC' or target_format=='SMAC3':
         #list format to SMAC(SMAC3)
-        from smac.configspace import ConfigurationSpace
+        from smac.utils.configspace import ConfigurationSpace # previously from smac.configspace import ConfigurationSpace
         from ConfigSpace.hyperparameters import UniformFloatHyperparameter, CategoricalHyperparameter
         output_config = ConfigurationSpace()
         for i in range(len(categorical_list)):
