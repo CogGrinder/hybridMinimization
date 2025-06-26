@@ -118,11 +118,12 @@ def hybridMinimization(fn,\
                        #n_find_leaf: number of sequential samples allowed when we reach leaf, i.e., how many continuous variables we're allowed to observe. i.e., batch size for continuous variables.
                        node_optimize='GP-EI',\
                        GP_normalizer = True,\
-                       random_seed=123,minimize=True,N_initialize_leaf=0):
+                       random_seed=123,minimize=True,N_initialize_leaf=0,lazy_node_generation=True):
                        #node_optimize: the surrogate model at the lead node, currently only 'GP' is supported.
                        #random_seed: set up a random seed for reproducibility. 
                        #minimize: whether we should minimize or maximize the fn.
                        #N_initialize_leaf: whether we get `N_initialize_leaf` samples for each leaf, corresponding to all possible combinations of categorical variables (EXP3BO practice). But this is expensive when there are a lot of combinations.
+                       #lazy_node_generation: whether we should generate the tree at the beginning, or only when we need to. This is useful when the tree is very deep, and we do not want to generate all the nodes at once.
                        
     #Set random seed
     np.random.seed(random_seed)
@@ -188,7 +189,13 @@ def hybridMinimization(fn,\
     
     #Preparation for the categorical part.
     if categorical_trained_model==None:
-        categorical_model = setupTree(categorical_list=categorical_list,\
+        if lazy_node_generation:
+            #If lazy_node_generation is True, we do not generate the tree at the beginning, but only when we need to.
+            categorical_model = setupTree(categorical_list=categorical_list,\
+                          policy_list=policy_list,update_list=update_list,exploration_probability=exploration_probability,\
+                          print_tree=False, lazy_node_generation=True)
+        else:
+            categorical_model = setupTree(categorical_list=categorical_list,\
                           policy_list=policy_list,update_list=update_list,exploration_probability=exploration_probability,\
                           print_tree=False)
     else:
@@ -243,6 +250,8 @@ def hybridMinimization(fn,\
             current_node = categorical_model
             for b in range(X_categorical_dimension):
                 for c in current_node.children:
+                    if lazy_node_generation:
+                        delayed_setupChildren(c)
                     #print(c.word,observed_X[a,0:(b+1)])
                     #print(c.word==observed_X[a,0:(b+1)])
                     if (c.word==observed_X[a,0:(b+1)]).all():
@@ -563,6 +572,12 @@ def hybridMinimization(fn,\
                 
                 myCHOICE.append(X_next)
                 myREWARD.append(Y_next.ravel())
+                
+                #DEBUG
+                PURPLE = '\033[95m'
+                ENDC = '\033[0m'
+                total_nodes, size_list = evaluateTreeSize(categorical_model)
+                print(PURPLE,'hybridMinimization>>> >>>> Total nodes:',total_nodes,'; Size list:',size_list,ENDC)
         else:
             raise NotImplementedError('Continuous optimizer: ',node_optimize,' has not been implemented.')
             return None

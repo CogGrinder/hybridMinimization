@@ -14,7 +14,9 @@ print('Python treeClassPlus, by Hengrui Luo. Version: 2022-Jan-19')
 # A class that represents an individual node in a
 # general tree
 
-def setupTree(categorical_list,policy_list=None,update_list=None,default_reward=0,exploration_probability=0.05,print_tree=False, VERBOSE=False):
+NEW = False # DEBUGGING NEW FUNCTIONALITY
+
+def setupTree(categorical_list,policy_list=None,update_list=None,default_reward=0,exploration_probability=0.05,print_tree=False, VERBOSE=False, lazy_node_generation=False):
     #Ideally, we do not have to generate the whole tree but just span as needed. Currently, such a data structure is work-in-progress.
     if policy_list == None:
         policy_list = ['UCTS']*len(categorical_list)
@@ -24,7 +26,7 @@ def setupTree(categorical_list,policy_list=None,update_list=None,default_reward=
         raise ValueError('The lengths of categorical list and policy_list and update_list must be equal.')
     myroot = Node(key=0,reward=default_reward,depth=0,n_visit=0,search_policy=policy_list[0],update_strategy=update_list[0],random_prob=exploration_probability)
     node_counter = 1
-    layer_all = [[]]*len(categorical_list)
+    layer_all:list[list[Node]] = [[] for _ in range(len(categorical_list))]
     #print( layer_all )
     for l in range(len(categorical_list)):
         #layer_all = []
@@ -37,7 +39,8 @@ def setupTree(categorical_list,policy_list=None,update_list=None,default_reward=
                 layer_all[l].append(current_node1)
             #myroot.printTree()
             if VERBOSE: print('layer 0',layer_all)
-        else:
+            myroot.children_generated = True
+        elif not lazy_node_generation:
             if VERBOSE: print('layer ',l)
             tmp_layer_all = []
             for previous_layer_node in layer_all[l-1]:
@@ -51,12 +54,175 @@ def setupTree(categorical_list,policy_list=None,update_list=None,default_reward=
                     previous_layer_node.appendChildNode(current_node2)
                     node_counter = node_counter + 1
                     tmp_layer_all.append(current_node2) 
+                    if l==len(categorical_list)-1:
+                        #If we are at the last layer, we can set the children_generated flag to True.
+                        #This is a leaf node, so it does not need delayed generation.
+                        current_node2.children_generated = True
+                previous_layer_node.children_generated = True
             layer_all[l] = tmp_layer_all.copy()
+        else:
+            print('>Lazy node generation enabled, tree will be generated on demand.')
+            break
     size_list = [len(layer_all[l]) for l in range(len(categorical_list))]
+    print('[DEBUG] Existing layers: ',layer_all)
     print(myroot.maxDepth(),'Layers, with size list: ',size_list)
+    
+    if lazy_node_generation:
+        #If lazy_node_generation is enabled, we keep the arguments for delayed setup of the tree.
+        setup_tree_args = {'categorical_list':categorical_list,
+                           'policy_list':policy_list,
+                           'update_list':update_list,
+                           'default_reward':default_reward,
+                           'exploration_probability':exploration_probability,
+                           'print_tree':print_tree,
+                           'VERBOSE':VERBOSE}
+        for child in myroot.children:
+            child.setup_tree_args = setup_tree_args
     if print_tree:myroot.printTree()
     return myroot
+
+def delayed_setupChildren(node:'Node'):
+    # Unpack the setup_tree_args
+    if not hasattr(node, 'setup_tree_args'):
+        raise ValueError('The node does not have setup_tree_args attribute. Please check if the node was properly generated using delayed setup.')
+    setup_tree_args = node.setup_tree_args
+    categorical_list = setup_tree_args['categorical_list']
+    policy_list = setup_tree_args['policy_list']
+    update_list = setup_tree_args['update_list']
+    default_reward = setup_tree_args['default_reward']
+    exploration_probability = setup_tree_args['exploration_probability']
+    print_tree = setup_tree_args['print_tree']
+    VERBOSE = setup_tree_args['VERBOSE']
     
+    #Check which children are already generated.
+    if node.children_generated:
+        if NEW: print(f"[NEW] >Children of current node {node.word} already generated, skipping delayed setup.")
+        return
+    if NEW: print(f"[NEW] >{len(categorical_list[node.depth]) - len(node.children)} children to be generated for node {node.word}.", end=' ')
+    
+    l = node.depth # Using naming from setupTree
+    if NEW: print(f"[NEW] >Setting up children for layer {l}.")
+    #layer_all = []
+    if l==0:
+        raise ValueError('The root node\'s children should not have a delayed setup.')
+    else:
+        if VERBOSE: print('layer ',l)
+        tmp_layer_all = []
+        previous_layer_node = node # Using naming from setupTree
+        if VERBOSE: print('>Handling parent node',previous_layer_node.word)
+        for i, current_layer_node in enumerate(categorical_list[l]):
+            if current_layer_node in [child.word[-1] for child in previous_layer_node.children]:
+                if NEW: print(f"[NEW] >Child {current_layer_node} already exists in the parent node {previous_layer_node.word}. Skipping.")
+                continue
+            # Calculate the new key for the current node
+            # The key is calculated based on the position in the layer's category and the parent's key
+            key_of_layer_start = lambda k: sum(np.cumprod([len(categorical_list[i]) for i in range(k)]))
+            new_key = key_of_layer_start(l) + (key_of_layer_start(l-1) - previous_layer_node.key)*len(categorical_list[l-1]) + i
+            if NEW: print(f"[NEW] >Parent node {previous_layer_node.word} -> generating child {current_layer_node} with key {new_key}")
+            current_node2 = Node(key=new_key,reward=default_reward,depth=l,n_visit=0,search_policy=policy_list[l],update_strategy=update_list[l],random_prob=exploration_probability)
+            current_node2.setup_tree_args = node.setup_tree_args
+            tmp_word = previous_layer_node.word.copy()
+            tmp_word.append(current_layer_node)
+            if VERBOSE: print('>>Handling parent node with key ',previous_layer_node.key,'>>>',tmp_word,'<-',previous_layer_node.word,'+',current_layer_node)
+            current_node2.setWord(tmp_word)
+            previous_layer_node.appendChildNode(current_node2)
+            tmp_layer_all.append(current_node2) 
+            if l==len(categorical_list)-1:
+                if NEW: print(f"[NEW] >Child {current_layer_node} is a leaf node, setting children_generated to True.")
+                #If we are at the last layer, we can set the children_generated flag to True.
+                #This is a leaf node, so it does not need delayed generation.
+                current_node2.children_generated = True
+        previous_layer_node.children_generated = True
+        # layer_all[l] = tmp_layer_all.copy()
+    # size_list = [len(layer_all[l]) for l in range(len(categorical_list))]
+
+def delayed_setupChild(node:'Node', child_index:int):
+    # Unpack the setup_tree_args
+    if not hasattr(node, 'setup_tree_args'):
+        raise ValueError('The node does not have setup_tree_args attribute. Please check if the node was properly generated using delayed setup.')
+    setup_tree_args = node.setup_tree_args
+    categorical_list = setup_tree_args['categorical_list']
+    policy_list = setup_tree_args['policy_list']
+    update_list = setup_tree_args['update_list']
+    default_reward = setup_tree_args['default_reward']
+    exploration_probability = setup_tree_args['exploration_probability']
+    print_tree = setup_tree_args['print_tree']
+    VERBOSE = setup_tree_args['VERBOSE']
+    
+    #Check which children are already generated.
+    if node.children_generated:
+        if NEW: print(f"[NEW] >Children of current node {node.word} already generated, skipping delayed setup.")
+        return
+    if NEW: print(f"[NEW] >1 child of {len(categorical_list[node.depth]) - len(node.children)} to be generated for node {node.word}.", end=' ')
+    
+    l = node.depth # Using naming from setupTree
+    if NEW: print(f"[NEW] >Setting up child for layer {l}.")
+    #layer_all = []
+    if l==0:
+        raise ValueError('The root node\'s children should not have a delayed setup.')
+    else:
+        if VERBOSE: print('layer ',l)
+        tmp_layer_all = []
+        previous_layer_node = node # Using naming from setupTree
+        if VERBOSE: print('>Handling parent node',previous_layer_node.word)
+        if 0<=child_index<len(categorical_list[l]):
+            current_layer_node = categorical_list[l][child_index]
+            if current_layer_node in [child.word[-1] for child in previous_layer_node.children]:
+                if NEW: print(f"[NEW] >Child {current_layer_node} already exists in the parent node {previous_layer_node.word}. Skipping.")
+                return
+            # Calculate the new key for the current node
+            # The key is calculated based on the position in the layer's category and the parent's key
+            key_of_layer_start = lambda k: sum(np.cumprod([len(categorical_list[i]) for i in range(k)]))
+            new_key = key_of_layer_start(l) + (key_of_layer_start(l-1) - previous_layer_node.key)*len(categorical_list[l-1]) + child_index
+            if NEW: print(f"[NEW] >Parent node {previous_layer_node.word} -> generating child {current_layer_node} with key {new_key}")
+            current_node2 = Node(key=new_key,reward=default_reward,depth=l,n_visit=0,search_policy=policy_list[l],update_strategy=update_list[l],random_prob=exploration_probability)
+            current_node2.setup_tree_args = node.setup_tree_args
+            tmp_word = previous_layer_node.word.copy()
+            tmp_word.append(current_layer_node)
+            if VERBOSE: print('>>Handling parent node with key ',previous_layer_node.key,'>>>',tmp_word,'<-',previous_layer_node.word,'+',current_layer_node)
+            current_node2.setWord(tmp_word)
+            previous_layer_node.appendChildNode(current_node2)
+            tmp_layer_all.append(current_node2) 
+            if l==len(categorical_list)-1:
+                if NEW: print(f"[NEW] >Child {current_layer_node} is a leaf node, setting children_generated to True.")
+                #If we are at the last layer, we can set the children_generated flag to True.
+                #This is a leaf node, so it does not need delayed generation.
+                current_node2.children_generated = True
+            if len(node.children) == len(categorical_list[node.depth]):
+                # If all children are generated, we can set the children_generated flag to True.
+                node.children_generated = True
+            return current_node2
+        else:
+            raise IndexError(f"Child index {child_index} is out of bounds for layer {l} with categories {categorical_list[l]}.")
+
+def evaluateTreeSize(myroot) -> tuple[int, list[int]]:
+    """
+    Evaluate the size of the tree and return the number of nodes and a list of sizes per layer.
+    """
+    if not isinstance(myroot, Node):
+        raise ValueError('Input must be an instance of Node class.')
+    
+    size_list = []
+    def count_nodes(node: Node) -> int:
+        if node.isLeaf():
+            return 1
+        count = 1  # Count this node
+        for child in node.children:
+            count += count_nodes(child)
+        return count
+    
+    def layer_sizes(node: Node, depth: int):
+        if depth >= len(size_list):
+            size_list.append(0)
+        size_list[depth] += 1
+        for child in node.children:
+            layer_sizes(child, depth + 1)
+    
+    total_nodes = count_nodes(myroot)
+    layer_sizes(myroot, 0)
+    
+    return total_nodes, size_list
+
 def treeFig(myroot,terminalkey=1,largestCatN=2):
     fig1, ax1 = plt.subplots(figsize=(5,5))
     myroot.plotTree(ax1)
@@ -76,6 +242,7 @@ class Node:
     def __init__(self,key,reward = -np.inf,depth=0,n_visit=0,
                  search_policy='UCTS',update_strategy='UCTS',random_prob=0.05):
         self.parent = None
+        self.children_generated = False
         self.children = []
         
         self.key = key
@@ -202,7 +369,11 @@ class Node:
             return 0
         else:
             tmp_list = [s.maxDepth() for s in self.children]
-            return np.max(tmp_list)+1
+            print("[DEBUG]",tmp_list)
+            if len(self.children)<=0:
+                return 0
+            else:
+                return 1 + np.max(tmp_list)
     
     def updateDepth(self):
         if self.isRoot():
@@ -316,7 +487,7 @@ class Node:
             return num_node
     
     def isLeaf(self):
-        return len(self.children)==0
+        return len(self.children)==0 and self.children_generated == True
     
     def isRoot(self):
         return self.parent is None
@@ -400,12 +571,21 @@ class Node:
             coin = np.random.uniform()
             #print('?????',coin)
             if coin < self.random_prob:
-                children_idx = np.random.randint(low=0, high=len(self.children),size=None)
+                #TODO: figure out how to handle the case when children are not generated yet.
+                if not self.children_generated:
+                    assert hasattr(self, 'setup_tree_args'), 'The node does not have setup_tree_args attribute. Please check if the node was properly generated using delayed setup.'
+                    children_idx = np.random.randint(low=0, high=len(self.setup_tree_args['categorical_list'][self.depth]),size=None)
+                    chosen_child = delayed_setupChild(self,children_idx)
+                    return chosen_child.findBestLeaf()
+                else:
+                    children_idx = np.random.randint(low=0, high=len(self.children),size=None)
                 if self.VERBOSE==True and self.isRoot():
                     print('Random selection ',children_idx,'-th child, root node -> node ',self.key,'.')
                 elif self.VERBOSE==True:
                     print('Random selection ',children_idx,'-th child, node',self.parent.key,'-> node ',self.key,'.')
             else:
+                if not self.children_generated:
+                    delayed_setupChildren(self)
                 if self.search_policy == 'UCTS':
                     children_UCT = [s.getUCT(variance=False) for s in self.children]
                     children_idx = np.argmax(children_UCT)
@@ -445,4 +625,11 @@ class Node:
                     if self.VERBOSE:print('treeClass:',self.search_policy,' selection ',children_idx,'-th child, root node -> node ',self.key,'.')
                 else:
                     if self.VERBOSE:print('treeClass:',self.search_policy,' selection ',children_idx,'-th child, node',self.parent.key,'-> node ',self.key,'.')
-            return self.children[children_idx].findBestLeaf()
+            try:
+                child = self.children[children_idx]
+            except IndexError as e:
+                print(f"[ERROR] IndexError: {e}. Child index {children_idx} is out of bounds for children {self.children} at depth {self.depth}, of categories {self.setup_tree_args['categorical_list'][self.depth]}.")
+                breakpoint()
+                raise IndexError(f"Invalid children index {children_idx} for node with key {self.key}.") from e
+            best_leaf = child.findBestLeaf()
+            return best_leaf
