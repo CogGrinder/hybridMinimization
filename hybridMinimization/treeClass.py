@@ -64,7 +64,6 @@ def setupTree(categorical_list,policy_list=None,update_list=None,default_reward=
             print('>Lazy node generation enabled, tree will be generated on demand.')
             break
     size_list = [len(layer_all[l]) for l in range(len(categorical_list))]
-    print('[DEBUG] Existing layers: ',layer_all)
     print(myroot.maxDepth(),'Layers, with size list: ',size_list)
     
     if lazy_node_generation:
@@ -152,7 +151,7 @@ def delayed_setupChild(node:'Node', child_index:int):
     #Check which children are already generated.
     if node.children_generated:
         if NEW: print(f"[NEW] >Children of current node {node.word} already generated, skipping delayed setup.")
-        return
+        return node.children[child_index]
     if NEW: print(f"[NEW] >1 child of {len(categorical_list[node.depth]) - len(node.children)} to be generated for node {node.word}.", end=' ')
     
     l = node.depth # Using naming from setupTree
@@ -169,7 +168,12 @@ def delayed_setupChild(node:'Node', child_index:int):
             current_layer_node = categorical_list[l][child_index]
             if current_layer_node in [child.word[-1] for child in previous_layer_node.children]:
                 if NEW: print(f"[NEW] >Child {current_layer_node} already exists in the parent node {previous_layer_node.word}. Skipping.")
-                return
+                # Find the index in the parent's children
+                index_in_existing_children = next(
+                    i for i, child in enumerate(previous_layer_node.children)
+                    if child.word[-1] == current_layer_node
+                )
+                return previous_layer_node.children[index_in_existing_children]
             # Calculate the new key for the current node
             # The key is calculated based on the position in the layer's category and the parent's key
             key_of_layer_start = lambda k: sum(np.cumprod([len(categorical_list[i]) for i in range(k)]))
@@ -369,7 +373,6 @@ class Node:
             return 0
         else:
             tmp_list = [s.maxDepth() for s in self.children]
-            print("[DEBUG]",tmp_list)
             if len(self.children)<=0:
                 return 0
             else:
